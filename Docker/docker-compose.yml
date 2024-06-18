@@ -1,0 +1,15 @@
+version: '3'
+
+services:
+  tf_notebook:
+    # build
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # others
+    container_name: tf_notebook
+    ports:
+      - "8888:8888"
+    stdin_open: true
+    volumes:
+      - ./:/workspace/scripts
