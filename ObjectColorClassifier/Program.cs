@@ -31,7 +31,7 @@ namespace ObjectColorClassifier
             var annotator = new CropColorAnnotator(objColorClassifier);
 
             var sw = Stopwatch.StartNew();
-            annotator.ClassifyCropsInDirectory(sourceDir, downscaleToMaxSize: 180);
+            annotator.ClassifyCropsInDirectory(sourceDir, downscaleToMaxSize: 200);
             sw.Stop();
 
             Console.WriteLine($"Totally took {sw.ElapsedMilliseconds}ms");

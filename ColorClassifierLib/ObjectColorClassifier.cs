@@ -25,10 +25,10 @@ namespace ColorClassifierLib
             {
                 // We could specialize expected crop area for other object types
                 // E.g. Pedestrians can be improved by also getting info about side position because they are more narrow ...
-                var cropStartX = (int)(objectCropMat.Width * 0.08f);
-                var cropStartY = (int)(objectCropMat.Height * 0.12f);
+                var cropStartX = (int)(objectCropMat.Width * 0.05f);
+                var cropStartY = (int)(objectCropMat.Height * 0.15f);
                 var widthCropOffset = cropStartX * 2;
-                var heightCropOffset = (int)(objectCropMat.Height / 2.0);
+                var heightCropOffset = (int)(objectCropMat.Height / 1.8);
 
                 cropRectangle = new Rect(cropStartX, cropStartY,
                     objectCropMat.Width - widthCropOffset,
@@ -39,7 +39,7 @@ namespace ColorClassifierLib
                 cropRectangle = new Rect(0, 0, objectCropMat.Width - 1, objectCropMat.Height - 1);
             }
 
-            const int iterationCount = 2;
+            const int iterationCount = 1;
 
             var bgMat = new Mat();
             var fgMat = new Mat();

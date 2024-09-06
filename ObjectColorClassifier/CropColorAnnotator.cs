@@ -31,8 +31,10 @@ namespace ObjectColorClassifier
 
             foreach (var sourceFile in Directory.GetFiles(fullPathSourceDir).OrderBy(File.GetCreationTime))
             {
-                using var origSourceMat = Cv2.ImRead(sourceFile);
-                using var sourceMatResized = ResizeToMax(origSourceMat, downscaleToMaxSize);
+                var origSourceMat = Cv2.ImRead(sourceFile);
+                var sourceMatResized = ResizeToMax(origSourceMat, downscaleToMaxSize);
+
+                sourceMatResized = ToEnrichColorsMat(sourceMatResized);
 
                 var sw = Stopwatch.StartNew();
                 var baseColor = _classifier.Classify(sourceMatResized, out var grabCut, out var x, out var y);
@@ -73,6 +75,38 @@ namespace ObjectColorClassifier
             var sourceFileName = Path.GetFileName(sourceFile);
             var resultFileName = $"{prefix}_{sourceFileName}";
             return Path.Combine(resultDir, resultFileName);
+        }
+
+
+        private static Mat ToEnrichColorsMat(Mat src)
+        {
+            // Convert the image to HSV color space
+            Mat hsv = new Mat();
+            Cv2.CvtColor(src, hsv, ColorConversionCodes.BGR2HSV);
+
+            // Split the HSV image into separate channels
+            Mat[] hsvChannels = Cv2.Split(hsv);
+
+            // Adjust the saturation (second channel)
+            Mat saturation = hsvChannels[1];
+            saturation.ConvertTo(saturation, MatType.CV_8UC1, 1.28, 0); // Increase saturation by X%
+            saturation.ConvertTo(saturation, MatType.CV_8UC1); // Ensure values are in the range 0-255
+
+            // Adjust the value (brightness) (third channel)
+            Mat value = hsvChannels[2];
+            value.ConvertTo(value, MatType.CV_8UC1, 1.2, 0); // Increase brightness by X%
+            value.ConvertTo(value, MatType.CV_8UC1); // Ensure values are in the range 0-255
+
+            // Merge the adjusted channels back
+            hsvChannels[1] = saturation;
+            hsvChannels[2] = value;
+            Mat adjustedHsv = new Mat();
+            Cv2.Merge(hsvChannels, adjustedHsv);
+
+            // Convert the adjusted HSV image back to BGR color space
+            Mat result = new Mat();
+            Cv2.CvtColor(adjustedHsv, result, ColorConversionCodes.HSV2BGR);
+            return result;
         }
 
         private static Mat ResizeToMax(Mat sourceMat, int? maxSize)
