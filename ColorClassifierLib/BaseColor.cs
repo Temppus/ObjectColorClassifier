@@ -1,6 +1,6 @@
 ﻿namespace ColorClassifierLib
 {
-    public enum ObjectColor
+    public enum BaseColor
     {
         Red = 0,
         Green,

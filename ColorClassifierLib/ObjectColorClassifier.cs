@@ -1,46 +1,55 @@
-﻿using OpenCvSharp;
+﻿using System.Diagnostics;
+using OpenCvSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp;
 using System.Runtime.InteropServices;
-using Microsoft.ML.OnnxRuntime.Tensors;
-using Microsoft.ML.OnnxRuntime;
 
 namespace ColorClassifierLib
 {
-    public class ObjectColorClassifier : IDisposable
+    public class ObjectColorClassifier
     {
-        private readonly InferenceSession _inferenceSession;
+        private readonly IBaseColorClassifier _baseColorClassifier;
 
-        public ObjectColorClassifier(string classifierModelPath)
+        public bool ReduceFocusArea { get; init; } = false;
+
+        public ObjectColorClassifier(IBaseColorClassifier baseColorClassifier)
         {
-            if (classifierModelPath == null) throw new ArgumentNullException(nameof(classifierModelPath));
-            _inferenceSession = new InferenceSession(classifierModelPath);
+            _baseColorClassifier = baseColorClassifier ?? throw new ArgumentNullException(nameof(baseColorClassifier));
         }
 
-        public Dictionary<ObjectColor, float> Classify(Mat objectCropMat,
-            out Mat maskedGrabCutMat, out Mat segmentedMat, out Mat dominateColorMat)
+        public BaseColor Classify(Mat objectCropMat, out Mat maskedGrabCutMat, out Mat segmentedMat, out Mat dominateColorMat)
         {
-            // These are basically hyperparameters for pedestrian
-            // We could specialize expected crop area for other object types
-            // E.g. Pedestrians can be improved by also getting info about side position because they are more narrow ...
-            var cropStartX = (int)(objectCropMat.Width * 0.14f);
-            var cropStartY = (int)(objectCropMat.Height * 0.16f);
-            var widthCropOffset = cropStartX * 2;
-            var heightCropOffset = (int)(objectCropMat.Height / 1.8);
+            Rect cropRectangle;
 
-            var cropRectangle = new Rect(cropStartX, cropStartY,
-                objectCropMat.Width - widthCropOffset,
-                objectCropMat.Height - heightCropOffset);
+            if (ReduceFocusArea)
+            {
+                // We could specialize expected crop area for other object types
+                // E.g. Pedestrians can be improved by also getting info about side position because they are more narrow ...
+                var cropStartX = (int)(objectCropMat.Width * 0.08f);
+                var cropStartY = (int)(objectCropMat.Height * 0.12f);
+                var widthCropOffset = cropStartX * 2;
+                var heightCropOffset = (int)(objectCropMat.Height / 2.0);
 
-            const int iterationCount = 3;
+                cropRectangle = new Rect(cropStartX, cropStartY,
+                    objectCropMat.Width - widthCropOffset,
+                    objectCropMat.Height - heightCropOffset);
+            }
+            else
+            {
+                cropRectangle = new Rect(0, 0, objectCropMat.Width - 1, objectCropMat.Height - 1);
+            }
+
+            const int iterationCount = 2;
 
             var bgMat = new Mat();
             var fgMat = new Mat();
             var result = new Mat(objectCropMat.Size(), MatType.CV_8UC1);
 
+            var sw = Stopwatch.StartNew();
             Cv2.GrabCut(objectCropMat, result, cropRectangle,
                 bgMat, fgMat,
                 iterationCount, GrabCutModes.InitWithRect);
+            sw.Stop();
 
             maskedGrabCutMat = ((result & 1)) * 255;
 
@@ -59,10 +68,10 @@ namespace ColorClassifierLib
             using var img = MatToImageSharp(backgroundColorMat);
 
             var colorThief = new ColorThief.ImageSharp.ColorThief();
-            var paletteColors = colorThief.GetPalette(img, 2, 10, false);
+            var paletteColors = colorThief.GetPalette(img, colorCount: 2, quality: 10, ignoreWhite: false);
             var colorDescriptor = paletteColors
                 // Skip first one which is assumed to be background mask color
-                .Skip(1)
+                .Skip(ReduceFocusArea ? 1 : 0)
                 .First();
 
             var dominateColor = colorDescriptor.Color;
@@ -72,53 +81,7 @@ namespace ColorClassifierLib
             // Create a new Mat object with the specified dimensions and color type
             dominateColorMat = new Mat(objectCropMat.Size(), MatType.CV_8UC3, bgrColor);
 
-            // RUN INFERENCE
-            float[] inputVector = { dominateColor.R, dominateColor.G, dominateColor.B };
-
-            var inputTensor = new DenseTensor<float>(inputVector,
-                // one row, 3 values
-                new[] { 1, 3 });
-
-            // Create input container
-            var inputs = new List<NamedOnnxValue>
-            {
-                NamedOnnxValue.CreateFromTensor("dense_12_input", inputTensor)
-            };
-
-            // Run inference
-            using var results = _inferenceSession.Run(inputs);
-
-            var outputTensor = results[0].AsTensor<float>();
-
-            // Assuming output tensor shape is [unk__32, 11]
-            int numSamples = outputTensor.Dimensions[0];
-            int numClasses = outputTensor.Dimensions[1];
-
-            var colorConfidenceMap = new Dictionary<ObjectColor, float>();
-
-            for (int i = 0; i < numSamples; i++)
-            {
-                // Find the index of the highest confidence score
-                float maxConfidence = float.MinValue;
-                int colorIndex = -1;
-                for (int j = 0; j < numClasses; j++)
-                {
-                    var confidence = outputTensor[i, j];
-                    var objColor = (ObjectColor)j;
-
-                    if (confidence > maxConfidence)
-                    {
-                        maxConfidence = outputTensor[i, j];
-                        colorIndex = j;
-                    }
-
-                    colorConfidenceMap.Add(objColor, confidence);
-                }
-
-                return colorConfidenceMap;
-            }
-
-            throw new InvalidOperationException("");
+            return _baseColorClassifier.GetBaseColor(dominateColor.R, dominateColor.G, dominateColor.B);
         }
 
         private static Image<Rgba32> MatToImageSharp(Mat mat)
@@ -151,11 +114,6 @@ namespace ColorClassifierLib
             }
 
             return imageSharpImage;
-        }
-
-        public void Dispose()
-        {
-            _inferenceSession.Dispose();
         }
     }
 }
