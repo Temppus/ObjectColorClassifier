@@ -2,7 +2,7 @@
 {
     public class SimpleDistanceBaseColorClassifier : IBaseColorClassifier
     {
-        public BaseColor GetBaseColor(byte r, byte g, byte b)
+        public IDictionary<BaseColor, float> GetBaseColorConfidences(byte r, byte g, byte b)
         {
             var baseColors = new Dictionary<BaseColor, int[]>
             {
@@ -23,9 +23,8 @@
 
             int[] inputColor = { r, g, b };
 
-            var closestColor = baseColors.MinBy(c => ColorDistance(inputColor, c.Value));
 
-            return closestColor.Key;
+            return baseColors.ToDictionary(x => x.Key, x => (float)ColorDistance(inputColor, x.Value));
         }
 
         // Method to calculate Euclidean distance between two RGB colors

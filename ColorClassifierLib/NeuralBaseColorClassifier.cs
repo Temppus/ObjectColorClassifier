@@ -13,7 +13,7 @@ namespace ColorClassifierLib
             _inferenceSession = new InferenceSession(classifierModelPath);
 
         }
-        public BaseColor GetBaseColor(byte r, byte g, byte b)
+        public IDictionary<BaseColor, float> GetBaseColorConfidences(byte r, byte g, byte b)
         {
             float[] inputVector = { r, g, b };
 
@@ -32,35 +32,34 @@ namespace ColorClassifierLib
 
             var outputTensor = results[0].AsTensor<float>();
 
-            // Assuming output tensor shape is [unk__32, 11]
             int numSamples = outputTensor.Dimensions[0];
+
+            //Batch size ?
+            if (numSamples != 1)
+                throw new InvalidOperationException($"Expected 1 got {numSamples}");
+
+            // Color classes
             int numClasses = outputTensor.Dimensions[1];
 
             var colorConfidenceMap = new Dictionary<BaseColor, float>();
 
-            for (int i = 0; i < numSamples; i++)
+            // Find the index of the highest confidence score
+            float maxConfidence = float.MinValue;
+
+            for (int j = 0; j < numClasses; j++)
             {
-                // Find the index of the highest confidence score
-                float maxConfidence = float.MinValue;
-                int colorIndex = -1;
-                for (int j = 0; j < numClasses; j++)
+                var confidence = outputTensor[0, j];
+                var objColor = (BaseColor)j;
+
+                if (confidence > maxConfidence)
                 {
-                    var confidence = outputTensor[i, j];
-                    var objColor = (BaseColor)j;
-
-                    if (confidence > maxConfidence)
-                    {
-                        maxConfidence = outputTensor[i, j];
-                        colorIndex = j;
-                    }
-
-                    colorConfidenceMap.Add(objColor, confidence);
+                    maxConfidence = outputTensor[0, j];
                 }
 
-                return colorConfidenceMap.MaxBy(x => x.Value).Key;
+                colorConfidenceMap.Add(objColor, confidence);
             }
 
-            throw new InvalidOperationException("Sanity");
+            return colorConfidenceMap;
         }
     }
 }

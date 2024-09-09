@@ -17,7 +17,7 @@ namespace ColorClassifierLib
             _baseColorClassifier = baseColorClassifier ?? throw new ArgumentNullException(nameof(baseColorClassifier));
         }
 
-        public BaseColor Classify(Mat objectCropMat, out Mat maskedGrabCutMat, out Mat segmentedMat, out Mat dominateColorMat)
+        public IDictionary<BaseColor, float> Classify(Mat objectCropMat, out Mat maskedGrabCutMat, out Mat segmentedMat, out Mat dominateColorMat)
         {
             Rect cropRectangle;
 
@@ -81,7 +81,7 @@ namespace ColorClassifierLib
             // Create a new Mat object with the specified dimensions and color type
             dominateColorMat = new Mat(objectCropMat.Size(), MatType.CV_8UC3, bgrColor);
 
-            return _baseColorClassifier.GetBaseColor(dominateColor.R, dominateColor.G, dominateColor.B);
+            return _baseColorClassifier.GetBaseColorConfidences(dominateColor.R, dominateColor.G, dominateColor.B);
         }
 
         private static Image<Rgba32> MatToImageSharp(Mat mat)

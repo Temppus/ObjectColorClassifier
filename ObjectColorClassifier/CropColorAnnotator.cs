@@ -37,7 +37,12 @@ namespace ObjectColorClassifier
                 sourceMatResized = ToEnrichColorsMat(sourceMatResized);
 
                 var sw = Stopwatch.StartNew();
-                var baseColor = _classifier.Classify(sourceMatResized, out var grabCut, out var x, out var y);
+                var colorConfidences = _classifier.Classify(sourceMatResized, out var grabCut, out var x, out var y);
+
+                var topColor = colorConfidences.MaxBy(x => x.Value).Key;
+                var secondColor = colorConfidences.OrderByDescending(x => x.Value).Skip(1).First().Key;
+                var baseColor = $"{topColor}__{secondColor}";
+
                 sw.Stop();
 
                 Console.WriteLine($"Color is {baseColor}. Took {sw.ElapsedMilliseconds}ms");

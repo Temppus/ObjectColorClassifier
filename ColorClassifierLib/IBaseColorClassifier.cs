@@ -2,6 +2,6 @@
 {
     public interface IBaseColorClassifier
     {
-        public BaseColor GetBaseColor(byte r, byte g, byte b);
+        public IDictionary<BaseColor, float> GetBaseColorConfidences(byte r, byte g, byte b);
     }
 }
